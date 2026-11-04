@@ -1,0 +1,295 @@
+{
+  "name": "Clinic Lead Test",
+  "nodes": [
+    {
+      "parameters": {
+        "company": "Clinic Test",
+        "lastname": "={{ $json.name }}",
+        "additionalFields": {
+          "description": "={{ $json.message }}",
+          "email": "={{ $json.email }}",
+          "phone": "={{ $json.phone }}"
+        }
+      },
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1.1,
+      "position": [
+        224,
+        0
+      ],
+      "id": "b0a708cb-2e4d-4106-958f-25ee0991d7ae",
+      "name": "Create a lead",
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "498WrgtXK0fzA89y",
+          "name": "Salesforce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "get",
+        "leadId": "={{ $json.id }}"
+      },
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1.1,
+      "position": [
+        448,
+        0
+      ],
+      "id": "1fe7859c-79e1-479e-9ebb-85f7d9877cfe",
+      "name": "Get a lead",
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "498WrgtXK0fzA89y",
+          "name": "Salesforce account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8010/webhook/lead",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "name",
+              "value": "={{ $json.Name }}"
+            },
+            {
+              "name": "phone",
+              "value": "={{ $json.Phone }}"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.Email }}"
+            },
+            {
+              "name": "message",
+              "value": "={{ $json.Description }}"
+            },
+            {
+              "name": "clinic_id",
+              "value": "demo_clinic"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        672,
+        0
+      ],
+      "id": "d2b039ef-7268-4543-a6cc-931596245a03",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "XiROPCR2Zpz14h4e",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "formTitle": "Clinic Enquiry",
+        "formFields": {
+          "values": [
+            {
+              "fieldLabel": "name",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "phone",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "email",
+              "fieldType": "email",
+              "requiredField": true
+            },
+            {
+              "fieldLabel": "message",
+              "fieldType": "textarea",
+              "requiredField": true
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.formTrigger",
+      "typeVersion": 2.6,
+      "position": [
+        0,
+        0
+      ],
+      "id": "23c858fd-3c7e-4f21-a1c3-baa3f6bf7840",
+      "name": "On form submission",
+      "webhookId": "f5f846fd-2c9e-4295-9307-eb5e14fb4cf5"
+    },
+    {
+      "parameters": {
+        "amount": 10
+      },
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        768,
+        0
+      ],
+      "id": "b815eec7-28fe-4d36-8d4f-708b0b9665e9",
+      "name": "Wait",
+      "webhookId": "468c614b-e526-49be-96b3-2f5b7686e0dc"
+    },
+    {
+      "parameters": {
+        "url": "=http://host.docker.internal:8010/admin/leads/{{ $json.lead_id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        912,
+        0
+      ],
+      "id": "3453e1e7-e09e-44f7-b906-67f6c181f42f",
+      "name": "HTTP Request1",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "HcNb06KcS8CARXJc",
+          "name": "Header Auth account 2"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "leadId": "={{ $('Get a lead').item.json.Id }}",
+        "updateFields": {
+          "customFieldsUi": {
+            "customFieldsValues": [
+              {
+                "fieldId": "Bot_Lead_ID__c",
+                "value": "={{ String($json.lead_id) }}"
+              },
+              {
+                "fieldId": "Bot_Status__c",
+                "value": "={{ $json.status }}"
+              },
+              {
+                "fieldId": "Bot_Score__c",
+                "value": "={{ $json.score ?? '' }}"
+              },
+              {
+                "fieldId": "Bot_Needs_Human__c",
+                "value": "={{ $json.review_required }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.salesforce",
+      "typeVersion": 1.1,
+      "position": [
+        1136,
+        0
+      ],
+      "id": "e6767feb-b62e-487e-a756-7cb8c4fda62e",
+      "name": "Update a lead",
+      "credentials": {
+        "salesforceOAuth2Api": {
+          "id": "498WrgtXK0fzA89y",
+          "name": "Salesforce account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Create a lead": {
+      "main": [
+        [
+          {
+            "node": "Get a lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a lead": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "On form submission": {
+      "main": [
+        [
+          {
+            "node": "Create a lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Wait",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Update a lead",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "95050d47-8f80-4c59-b02e-b5f386dffcf6",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "95d36bccd36ee6d17107c3284c2fa5288aff6af32caa50d90695b792fc918417"
+  },
+  "nodeGroups": [],
+  "id": "Lz93sRBioNxUf5FS",
+  "tags": []
+}
