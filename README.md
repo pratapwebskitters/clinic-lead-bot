@@ -28,6 +28,10 @@ Copy-Item .env.example .env
 
 Fill in `.env`. The app loads it automatically; existing environment variables take precedence.
 `LLM_MODEL` may be blank to use the built-in default; verify the model name with your provider.
+For Gemini, set `LLM_PROVIDER=gemini`, `LLM_MODEL=gemini-3.5-flash-lite`, and
+`LLM_API_KEY` to your Google AI Studio API key. Gemini uses the same deadline,
+response-size limit, validation, and safety checks as the other providers.
+Use fictional enquiries when evaluating free-tier services; check the provider's data-use terms.
 Set `APP_ENV=production` for production validation. `ADMIN_TELEGRAM_CHAT_ID` receives failure alerts.
 `ENABLE_RECOVERY=1` (default) starts recovery and failed-alert retries in the background at startup
 and every minute, independently of `ENABLE_SCHEDULER`. Only one instance should run recovery;
@@ -89,6 +93,47 @@ PowerShell:
 Invoke-RestMethod -Method Post -Uri 'http://localhost:8000/admin/leads/1/approve' `
     -Headers @{ 'X-Admin-Secret' = $env:ADMIN_SECRET }
 ```
+
+## Read results from n8n or a CRM
+
+After submitting an enquiry, retain the returned `lead_id` alongside the Salesforce
+Lead ID. Use an HTTP Request node to read `GET /admin/leads/{lead_id}`, with a
+Header Auth credential named `X-Admin-Secret` whose value is `ADMIN_SECRET`.
+For n8n running in Docker on this Mac, the URL is
+`http://host.docker.internal:8010/admin/leads/{lead_id}`.
+
+The authenticated, read-only response includes `status`, `score`, `reply`,
+`needs_human`, `review_required`, `urgent`, `sent_at`, and `duplicate_of`. It never
+approves or sends a reply. `received`, `processing`, and `sending` are in-progress
+states: use a Wait node and poll again with a bounded loop. If the loop times out,
+retain the waiting status in the CRM and reconcile it using a scheduled workflow;
+do not resubmit the enquiry. A non-null `sent_at` records confirmed SMTP acceptance,
+not guaranteed inbox delivery. `delivery_unknown` always requires human review,
+even if a confirmed send was subsequently recorded.
+
+Suggested Salesforce Lead custom fields:
+
+| Field API name | Type | Response value |
+|---|---|---|
+| `Bot_Lead_ID__c` | Text (64) | `lead_id` |
+| `Bot_Status__c` | Text (40) | `status` |
+| `Bot_Score__c` | Text (10) | `score` (can be null) |
+| `Bot_Needs_Human__c` | Checkbox | `review_required` |
+
+Use the Salesforce ID from the earlier **Get a lead** node when updating the CRM;
+the numeric bot ID is not a Salesforce record ID. Store the bot ID immediately
+after submission so polling can resume after an interrupted workflow. Duplicate
+submissions have their own ID and `duplicate_of` points to the original: retain the
+duplicate status, and fetch the original separately if you need its qualification.
+When `review_required` is true, route to a Salesforce Task linked through `WhoId`
+to the Lead. Look for an existing review task for that bot ID before creating one
+on subsequent polls. Do not automatically call the approval endpoint.
+
+The status endpoint enables polling only; it does not push callbacks or
+automatically update Salesforce. Keep periodic reconciliation enabled to discover
+later recovery or follow-up escalations. CRM tasks also do not acknowledge the
+app's existing Telegram alert queue; replacing Telegram delivery is a separate
+integration.
 
 ## Project layout
 

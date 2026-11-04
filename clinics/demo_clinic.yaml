@@ -1,8 +1,8 @@
 # DEMO DATA. Replace every value with the real clinic's approved information.
 clinic_id: demo_clinic
 clinic_name: Smile Care Dental Clinic
-mode: shadow                       # shadow = owner approves drafts | auto = replies sent to leads
-owner_telegram_chat_id: REPLACE_WITH_CHAT_ID
+mode: auto                      # shadow = owner approves drafts | auto = replies sent to leads
+#owner_telegram_chat_id: REPLACE_WITH_CHAT_ID
 location: "12 Park Street, Kolkata 700016 (near Park Street Metro)"
 maps_link: "https://maps.google.com/?q=REPLACE"
 timings: "Mon-Sat 10am-8pm, Sunday closed"

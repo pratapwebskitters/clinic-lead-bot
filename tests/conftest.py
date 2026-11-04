@@ -1,4 +1,6 @@
 import json
+from pathlib import Path
+import shutil
 
 import pytest
 
@@ -12,6 +14,12 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setenv("WEBHOOK_SECRET", "test-secret")
     monkeypatch.setenv("ADMIN_SECRET", "admin-secret")
     monkeypatch.setenv("DB_PATH", str(tmp_path / "test.db"))
+    # Unit tests use fixed shadow-mode demo data, independent of local clinic edits.
+    clinic_dir = tmp_path / "fixture_clinics"
+    clinic_dir.mkdir()
+    shutil.copyfile(Path(__file__).parent / "fixtures" / "demo_clinic.yaml",
+                    clinic_dir / "demo_clinic.yaml")
+    monkeypatch.setenv("CLINICS_DIR", str(clinic_dir))
     monkeypatch.setenv("LLM_API_KEY", "test-key")
     monkeypatch.setenv("ENABLE_SCHEDULER", "0")
     monkeypatch.setenv("ENABLE_RECOVERY", "0")

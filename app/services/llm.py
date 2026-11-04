@@ -6,6 +6,7 @@ import logging
 import time
 from collections.abc import Iterator
 from html import escape
+from urllib.parse import quote
 
 import httpx
 import yaml
@@ -94,6 +95,30 @@ def call_provider(system: str, user: str, timeout: float | None = None,
     timeout = min(s.llm_timeout, timeout) if timeout is not None else s.llm_timeout
     deadline = deadline if deadline is not None else time.monotonic() + timeout
     _remaining(deadline)
+    if s.llm_provider == "gemini":
+        data = _read_provider(
+            "https://generativelanguage.googleapis.com/v1beta/models/"
+            f"{quote(s.llm_model, safe='')}:generateContent",
+            headers={"x-goog-api-key": s.llm_api_key, "content-type": "application/json"},
+            payload={
+                "systemInstruction": {"parts": [{"text": system}]},
+                "contents": [{"role": "user", "parts": [{"text": user}]}],
+                "generationConfig": {
+                    "temperature": 0.2, "maxOutputTokens": 2048,
+                    "responseMimeType": "application/json",
+                },
+            },
+            timeout=timeout, deadline=deadline,
+        )
+        candidates = data.get("candidates") or []
+        if not candidates or candidates[0].get("finishReason") != "STOP":
+            raise ValueError("Gemini response blocked, incomplete, or missing")
+        parts = candidates[0].get("content", {}).get("parts", [])
+        text = "".join(part.get("text", "") for part in parts if not part.get("thought"))
+        if not text.strip():
+            raise ValueError("Gemini returned no reply text")
+        return text
+
     if s.llm_provider == "anthropic":
         data = _read_provider(
             "https://api.anthropic.com/v1/messages",

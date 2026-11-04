@@ -45,7 +45,8 @@ class Settings:
 def get_settings() -> Settings:
     provider = os.getenv("LLM_PROVIDER", "anthropic").strip().lower()
     # Defaults are only a convenience; set LLM_MODEL explicitly after checking current model names.
-    default_model = {"anthropic": "claude-sonnet-5-5", "openai": "gpt-4o-mini"}.get(provider, "")
+    default_model = {"anthropic": "claude-sonnet-5-5", "openai": "gpt-4o-mini",
+                     "gemini": "gemini-3.5-flash-lite"}.get(provider, "")
     return Settings(
         app_env=os.getenv("APP_ENV", "development"),
         webhook_secret=os.getenv("WEBHOOK_SECRET", ""),

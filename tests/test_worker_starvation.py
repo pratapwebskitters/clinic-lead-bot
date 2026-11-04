@@ -71,7 +71,9 @@ def save(index=1):
 
 
 @pytest.mark.parametrize("compressed", [False, True])
-def test_trickling_provider_aborts_and_closes_response(clock, stream_server, compressed):
+@pytest.mark.parametrize("provider", ["anthropic", "gemini"])
+def test_trickling_provider_aborts_and_closes_response(clock, stream_server, compressed, monkeypatch, provider):
+    monkeypatch.setenv("LLM_PROVIDER", provider)
     body = Trickle(clock, gzip.compress(b"response")[:10] if compressed else b" ")
     requests = stream_server(body, {"Content-Encoding": "gzip"} if compressed else None)
     with pytest.raises(llm.DeadlineExceeded):
@@ -96,11 +98,12 @@ def test_deadline_exceeded_is_not_retried(fake_llm):
     assert result.llm_failed and result.needs_human
 
 
-@pytest.mark.parametrize("provider", ["anthropic", "openai"])
+@pytest.mark.parametrize("provider", ["anthropic", "openai", "gemini"])
 def test_provider_success_and_remaining_timeout(clock, stream_server, monkeypatch, provider):
     monkeypatch.setenv("LLM_PROVIDER", provider)
     data = ({"content": [{"type": "text", "text": "hello"}]} if provider == "anthropic" else
-            {"choices": [{"message": {"content": "hello"}}]})
+            {"choices": [{"message": {"content": "hello"}}]} if provider == "openai" else
+            {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": "hello"}]}}]})
     body = Body(json.dumps(data).encode())
     requests = stream_server(body)
     assert llm.call_provider("system", "lead", timeout=2, deadline=107) == "hello"
@@ -109,8 +112,12 @@ def test_provider_success_and_remaining_timeout(clock, stream_server, monkeypatc
 
 
 @pytest.mark.parametrize("extra,compressed", [(0, False), (1, False), (1, True)])
-def test_response_body_limit(clock, stream_server, extra, compressed):
-    data = json.dumps({"content": [{"type": "text", "text": "hello"}]}).encode()
+@pytest.mark.parametrize("provider", ["anthropic", "gemini"])
+def test_response_body_limit(clock, stream_server, extra, compressed, monkeypatch, provider):
+    monkeypatch.setenv("LLM_PROVIDER", provider)
+    payload = ({"content": [{"type": "text", "text": "hello"}]} if provider == "anthropic" else
+               {"candidates": [{"finishReason": "STOP", "content": {"parts": [{"text": "hello"}]}}]})
+    data = json.dumps(payload).encode()
     data += b" " * (llm.MAX_RESPONSE_BYTES - len(data) + extra)
     body = Body(gzip.compress(data) if compressed else data)
     stream_server(body, {"Content-Encoding": "gzip"} if compressed else None)

@@ -1,0 +1,27 @@
+# DEMO DATA. Replace every value with the real clinic's approved information.
+clinic_id: demo_clinic
+clinic_name: Smile Care Dental Clinic
+mode: shadow                       # shadow = owner approves drafts | auto = replies sent to leads
+owner_telegram_chat_id: REPLACE_WITH_CHAT_ID
+location: "12 Park Street, Kolkata 700016 (near Park Street Metro)"
+maps_link: "https://maps.google.com/?q=REPLACE"
+timings: "Mon-Sat 10am-8pm, Sunday closed"
+doctors:
+  - "Dr. A. Sharma, BDS, MDS (Endodontics)"
+  - "Dr. R. Sen, BDS (General Dentistry)"
+services:
+  - Check-up and consultation
+  - Teeth cleaning
+  - Root canal treatment
+  - Braces and aligners
+  - Dental implants
+  - Teeth whitening
+  - Pediatric dentistry
+prices:
+  consultation: "₹300"
+  cleaning: "₹800 onwards"
+  other_treatments: "Depends on the case, the doctor will confirm after examination"
+payment_options: "UPI, cards, cash. EMI: our team will confirm."
+booking_link: "https://cal.com/REPLACE/consultation"
+phone: "+91 90000 00000"
+languages: "English, Hindi, Bengali"

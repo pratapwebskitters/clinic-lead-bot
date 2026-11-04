@@ -6,7 +6,7 @@ import logging
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException, Response
 
 from app import clinics, db
 from app.config import get_settings, missing_required
@@ -95,6 +95,28 @@ def receive_lead(
 
     background.add_task(workers.run_lead, lead_id)
     return {"lead_id": lead_id, "status": "received"}
+
+
+@app.get("/admin/leads/{lead_id}")
+def lead_status(lead_id: int, response: Response,
+                x_admin_secret: Optional[str] = Header(default=None)) -> dict:
+    """Read a processing snapshot for CRM synchronization; never send or approve."""
+    _require_secret(x_admin_secret, get_settings().admin_secret)
+    lead = db.get_lead(lead_id)
+    if lead is None:
+        raise HTTPException(status_code=404, detail="lead not found")
+    response.headers["Cache-Control"] = "no-store"
+    fields = ("clinic_id", "status", "score", "intent", "reason", "reply", "safety_flags",
+              "duplicate_of", "created_at", "replied_at", "sent_at", "followup_status")
+    return {
+        "lead_id": lead_id,
+        **{field: lead[field] for field in fields},
+        "urgent": bool(lead["urgent"]),
+        "needs_human": bool(lead["needs_human"]),
+        "review_required": bool(lead["needs_human"]) or lead["status"] in {
+            "pending_approval", "needs_human", "delivery_unknown",
+        },
+    }
 
 
 @app.post("/admin/leads/{lead_id}/approve")

@@ -90,3 +90,80 @@ def test_urgent_forces_needs_human(clinic, fake_llm):
 def test_unknown_intent_becomes_other(clinic, fake_llm):
     fake_llm({**GOOD, "intent": "something_new"})
     assert llm.qualify(LEAD, clinic).intent == "other"
+
+
+@pytest.fixture
+def gemini_server(monkeypatch):
+    import httpx
+
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("LLM_MODEL", "gemini-3.5-flash-lite")
+    monkeypatch.setenv("LLM_API_KEY", "mock-google-key")
+    responses, requests = [], []
+
+    def respond(request):
+        requests.append(request)
+        status, data = responses[min(len(requests) - 1, len(responses) - 1)]
+        return httpx.Response(status, json=data)
+
+    with httpx.Client(transport=httpx.MockTransport(respond)) as client:
+        monkeypatch.setattr(llm.httpx, "stream", client.stream)
+        yield responses, requests
+
+
+def gemini_response(parts=None, finish="STOP"):
+    return {"candidates": [{"finishReason": finish, "content": {"parts":
+        parts if parts is not None else [{"text": json.dumps(GOOD)}]}}]}
+
+
+def test_gemini_request_and_qualification(clinic, gemini_server):
+    responses, requests = gemini_server
+    responses.append((200, gemini_response()))
+    result = llm.qualify(LEAD, clinic)
+    assert result.score == "hot" and not result.llm_failed
+    assert len(requests) == 1
+    request = requests[0]
+    assert str(request.url) == (
+        "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:generateContent")
+    assert "mock-google-key" not in str(request.url)
+    assert request.headers["x-goog-api-key"] == "mock-google-key"
+    payload = json.loads(request.content)
+    assert payload["systemInstruction"]["parts"][0]["text"] == llm.build_system_prompt(clinic)
+    assert payload["contents"] == [{"role": "user", "parts": [{"text": llm.build_user_message(LEAD)}]}]
+    assert payload["generationConfig"]["responseMimeType"] == "application/json"
+    assert payload["generationConfig"]["maxOutputTokens"] == 2048
+
+
+def test_gemini_joins_text_parts_and_ignores_thoughts(gemini_server):
+    responses, _ = gemini_server
+    responses.append((200, gemini_response([
+        {"text": "private reasoning", "thought": True}, {"text": '{"score":'},
+        {"inlineData": {"data": "ignored"}}, {"text": '"hot"}'},
+    ])))
+    assert llm.call_provider("system", "lead") == '{"score":"hot"}'
+
+
+@pytest.mark.parametrize("status,data", [
+    (200, {"promptFeedback": {"blockReason": "SAFETY"}}),
+    (200, gemini_response(finish="MAX_TOKENS")),
+    (200, gemini_response(finish="SAFETY")),
+    (200, gemini_response(parts=[])),
+    (200, gemini_response(parts=[{"text": "invalid JSON"}])),
+    (200, gemini_response(parts=[{"text": '{"score":"invalid"}'}])),
+    (401, {"error": {"status": "UNAUTHENTICATED"}}),
+    (429, {"error": {"status": "RESOURCE_EXHAUSTED"}}),
+])
+def test_gemini_errors_use_existing_retry_and_human_fallback(clinic, gemini_server, status, data):
+    responses, requests = gemini_server
+    responses.append((status, data))
+    result = llm.qualify(LEAD, clinic)
+    assert len(requests) == 2
+    assert result.llm_failed and result.needs_human and result.reply == ""
+
+
+def test_gemini_default_model(monkeypatch):
+    from app.config import get_settings
+
+    monkeypatch.setenv("LLM_PROVIDER", "gemini")
+    monkeypatch.delenv("LLM_MODEL", raising=False)
+    assert get_settings().llm_model == "gemini-3.5-flash-lite"
